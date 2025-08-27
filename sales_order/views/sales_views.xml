@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- ✅ Refund Requests Menu Action -->
+    <record id="action_refund_requests" model="ir.actions.act_window">
+        <field name="name">Refund Requests</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '=', 'returned')]</field>
+    </record>
+
+    <!-- ✅ Replacement Orders Menu Action -->
+    <record id="action_replacement_orders" model="ir.actions.act_window">
+        <field name="name">Replacement Orders</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '=', 'replacement')]</field>
+    </record>
+
+    <!-- ✅ On Hold Orders Menu Action -->
+    <record id="action_on_hold_orders" model="ir.actions.act_window">
+        <field name="name">On Hold Orders</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '=', 'on_hold')]</field>
+    </record>
+
+    <!-- ✅ Menu items under Orders -->
+    <menuitem id="menu_sale_refund_requests"
+              name="Refund Requests"
+              parent="sale.sale_order_menu"
+              action="action_refund_requests"
+              sequence="25"/>
+
+    <menuitem id="menu_sale_replacement_orders"
+              name="Replacement Orders"
+              parent="sale.sale_order_menu"
+              action="action_replacement_orders"
+              sequence="26"/>
+
+    <menuitem id="menu_sale_on_hold_orders"
+              name="On Hold Orders"
+              parent="sale.sale_order_menu"
+              action="action_on_hold_orders"
+              sequence="27"/>
+
+    <!-- ✅ Inherited Form View -->
+    <record id="view_order_form_custom" model="ir.ui.view">
+        <field name="name">sale.order.form.custom.view</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//sheet" position="inside">
+                <group>
+                    <field name="warehouse_status" readonly="1"/>
+                </group>
+            </xpath>
+
+            <xpath expr="//header" position="inside">
+                <button name="action_set_pending"
+                        string="Pending"
+                        type="object"
+                        class="btn btn-secondary"/>
+
+                <button name="action_set_waiting_stock"
+                        string="Waiting Stock"
+                        type="object"
+                        class="btn btn-warning"/>
+
+                <button name="action_set_assigned_to_shipping"
+                        string="Assigned to Shipping"
+                        type="object"
+                        class="btn btn-info"/>
+            </xpath>
+
+            <xpath expr="//sheet/div[@name='button_box']" position="inside">
+                <div class="oe_button_box" name="button_box">
+                    <!-- Orders Smart Button -->
+                    <button type="object"
+                            name="action_view_previous_orders"
+                            class="oe_stat_button"
+                            icon="fa-list">
+                        <field name="num_orders" widget="statinfo" string="Customer Orders"/>
+                    </button>
+                    <!-- Replacements Smart Button -->
+                    <button type="object"
+                            name="action_view_replacements"
+                            class="oe_stat_button"
+                            icon="fa-refresh">
+                        <field name="num_replaced" widget="statinfo" string="Replacements"/>
+                    </button>
+                    <!-- Cancelled Orders Smart Button -->
+                    <button type="object"
+                            name="action_view_cancelled_orders"
+                            class="oe_stat_button"
+                            icon="fa-times">
+                        <field name="num_cancelled" widget="statinfo" string="Cancelled"/>
+                    </button>
+                </div>
+            </xpath>
+
+            <xpath expr="//header/button[@name='action_set_pending']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <xpath expr="//header/button[@name='action_set_waiting_stock']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <xpath expr="//header/button[@name='action_set_assigned_to_shipping']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <!-- أزرار خاصة بالإجراءات -->
+            <xpath expr="//header" position="inside">
+                <button name="action_no_answer"
+                        type="object"
+                        string="No Answer"
+                        class="text-bg-danger" />
+
+                <!-- ✅ زر On Hold الجديد -->
+                <button name="action_on_hold"
+                        type="object"
+                        string="On Hold"
+                        class="btn btn-warning"
+                        invisible="state == 'on_hold'" />
+
+                <!-- ✅ زر إزالة من On Hold -->
+<!--                <button name="action_remove_on_hold"-->
+<!--                        type="object"-->
+<!--                        string="Remove from Hold"-->
+<!--                        class="btn btn-success"-->
+<!--                        invisible="state != 'on_hold'" />-->
+            </xpath>
+
+            <!-- نخفي زر الإرسال -->
+            <xpath expr="//button[@name='action_quotation_send']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <!-- نخفي زر Confirm -->
+            <xpath expr="//button[@name='action_confirm']" position="replace"/>
+
+            <!-- نضيف الزر الجديد Sales Confirm -->
+            <xpath expr="//header" position="inside">
+                <button name="action_sales_confirm"
+                        string="Sales Confirm"
+                        type="object"
+                        class="btn btn-primary"
+                        invisible="state in ('sale','sales_confirmed')"/>
+
+                <button name="action_sales_confirm"
+                        string="Confirmed"
+                        type="object"
+                        class="btn btn-primary"
+                        invisible="state not in ('sale','sales_confirmed')"/>
+            </xpath>
+
+            <!-- ✅ إضافة شريط الحالة للـ Warehouse Status -->
+            <xpath expr="//header" position="inside">
+                <div class="oe_title">
+                    <field name="warehouse_status" widget="statusbar"
+                           options="{'clickable': True}"
+                           statusbar_visible="pending,waiting_stock,assigned_to_shipping"/>
+                </div>
+            </xpath>
+
+            <!-- مجموعة الحقول حسب التصميم -->
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <group string="Customer Info" col="2">
+                    <field name="phone"/>
+                    <field name="phone2"/>
+                    <field name="gender"/>
+                </group>
+
+                <group string="Order Info" col="2">
+                    <field name="payment_type"/>
+                    <field name="total_quantity"/>
+                    <field name="attempts_count"/>
+                    <field name="attempt_date"/>
+                    <field name="last_action_type"/>
+                </group>
+
+                <!-- ✅ إضافة معلومات On Hold -->
+                <!-- مؤجل حتى يتم تحميل الـ Python models -->
+                <!--
+                <group string="On Hold Information" col="2" invisible="state != 'on_hold'">
+                    <field name="hold_date" readonly="1"/>
+                    <field name="hold_time" readonly="1"/>
+                    <field name="hold_reason" readonly="1" colspan="2"/>
+                    <field name="hold_notes" readonly="1" colspan="2"/>
+                </group>
+                -->
+            </xpath>
+
+            <!-- عدادات عامة -->
+            <xpath expr="//field[@name='payment_term_id']" position="after">
+                <field name="num_orders"/>
+                <field name="num_cancelled"/>
+                <field name="num_returned"/>
+                <field name="num_delivered"/>
+                <field name="num_pending"/>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- ✅ تحديث List View لإضافة معلومات On Hold -->
+    <!-- مؤجل حتى يتم تحميل الـ Python models -->
+    <!--
+    <record id="view_order_tree_custom" model="ir.ui.view">
+        <field name="name">sale.order.tree.custom</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_quotation_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='state']" position="after">
+                <field name="hold_date" optional="hide"/>
+                <field name="hold_time" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+    -->
+
+    <!-- ✅ Cron Job للتحقق من تذكيرات On Hold كل 15 دقيقة -->
+    <!-- مؤجل حتى يتم تحميل الـ Python models -->
+    <!--
+    <record id="cron_check_on_hold_reminders" model="ir.cron">
+        <field name="name">Check On Hold Reminders</field>
+        <field name="model_id" ref="sale.model_sale_order"/>
+        <field name="state">code</field>
+        <field name="code">model.check_on_hold_reminders()</field>
+        <field name="interval_number">15</field>
+        <field name="interval_type">minutes</field>
+        <field name="numbercall">-1</field>
+        <field name="active">True</field>
+    </record>
+    -->
+
+</odoo>
