@@ -24,17 +24,21 @@ class OnHoldWizard(models.TransientModel):
         order_id = self.env.context.get('active_id')
         if order_id:
             order = self.env['sale.order'].browse(order_id)
-            if order.state == 'sales_confirmed':
+            if order.warehouse_status != 'pending':
                 raise models.ValidationError(
                     "⚠️ لا يمكن وضع الطلب On Hold لأنه تم تأكيده بالفعل"
                 )
+            # elif order.state == 'assigned_to_shipping':
+            #     raise models.ValidationError(
+            #         "⚠️ لا يمكن وضع الطلب On Hold لأنه تم تأكيده بالفعل"
+            #     )
             res['order_id'] = order.id
         return res
 
     def action_set_on_hold(self):
         for wizard in self:
             order = wizard.order_id
-            if order.state == 'sales_confirmed':
+            if order.warehouse_status != 'pending':
                 order.message_post(body="⚠️ لا يمكن وضع الطلب On Hold لأنه تم تأكيده بالفعل")
                 return {
                     'type': 'ir.actions.client',
@@ -52,31 +56,49 @@ class OnHoldWizard(models.TransientModel):
             order.attempt_date = fields.Datetime.now()
             order.attempts_count += 1
 
-            # إضافة سجل في الرسائل
-            order.message_post(
-                body=f"""
-                <p><strong>تم وضع الطلب في الانتظار</strong></p>
-                <ul>
-                    <li><strong>تاريخ المتابعة:</strong> {wizard.hold_date}</li>
-                    <li><strong>وقت المتابعة:</strong> {wizard.hold_time}</li>
-                    <li><strong>السبب:</strong> {wizard.reason}</li>
-                    <li><strong>الملاحظات:</strong> {wizard.notes or 'لا توجد'}</li>
-                </ul>
-                """,
-                subject="Order On Hold"
-            )
+            # # إضافة سجل في الرسائل
+            # order.message_post(
+            #     body=f"""
+            #     <p><strong>تم وضع الطلب في الانتظار</strong></p>
+            #     <ul>
+            #         <li><strong>تاريخ المتابعة:</strong> {wizard.hold_date}</li>
+            #         <li><strong>وقت المتابعة:</strong> {wizard.hold_time}</li>
+            #         <li><strong>السبب:</strong> {wizard.reason}</li>
+            #         <li><strong>الملاحظات:</strong> {wizard.notes or 'لا توجد'}</li>
+            #     </ul>
+            #     """,
+            #     subject="Order On Hold"
+            # )
 
             # جدولة التنبيه
             wizard._schedule_notification()
 
+        # return (
+        #     {
+        #         'type': 'ir.actions.act_window_close'
+        #     },
+        #     {
+        #     'type': 'ir.actions.client',
+        #     'tag': 'display_notification',
+        #     'params': {
+        #         'title': 'تم بنجاح',
+        #         'message': f'تم وضع الطلب {self.order_id.name} في الانتظار حتى {self.hold_date} الساعة {self.hold_time}',
+        #         'type': 'success',
+        #         'sticky': False,
+        #     }
+        # })
         return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
+            'type': 'ir.actions.act_window_close',
+            'tag': 'reload',
             'params': {
-                'title': 'تم بنجاح',
-                'message': f'تم وضع الطلب {self.order_id.name} في الانتظار حتى {self.hold_date} الساعة {self.hold_time}',
-                'type': 'success',
-                'sticky': False,
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'تم بنجاح',
+                    'message': f'تم وضع الطلب {self.order_id.name} في الانتظار حتى {self.hold_date} الساعة {self.hold_time}',
+                    'type': 'success',
+                    'sticky': False,
+                }
             }
         }
 
@@ -154,7 +176,7 @@ class MailActivity(models.Model):
                 if feedback == 'done' and activity.res_id:
                     order = self.env['sale.order'].browse(activity.res_id)
                     if order.exists():
-                        order.state = 'sales_confirmed'
-                        order.is_sales_confirmed = True
+                        order.warehouse_status = 'waiting_stock'
+                        # order.is_sales_confirmed = True
                         order.message_post(body="✅ تم تأكيد المبيعات تلقائياً بعد إغلاق الـ On Hold Activity")
         return res

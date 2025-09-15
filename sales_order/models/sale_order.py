@@ -29,13 +29,13 @@ class SaleOrder(models.Model):
     num_pending = fields.Integer(string="Pending Orders", compute="_compute_order_stats", store=True)
 
 
-    state = fields.Selection(selection_add=[
-        ('process', 'Processing'),
-        ('returned', 'Returned'),
-        ('replacement', 'Replacement'),
-        ('sales_confirmed', 'Sales Confirmed'),
-    ], default='process')
-    is_sales_confirmed = fields.Boolean(string="Confirmed", default=False)
+    # state = fields.Selection(selection_add=[
+    #     ('process', 'Processing'),
+    #     ('returned', 'Returned'),
+    #     ('replacement', 'Replacement'),
+    #     ('sales_confirmed', 'Sales Confirmed'),
+    # ], default='process')
+    # is_sales_confirmed = fields.Boolean(string="Confirmed", default=False)
 
     warehouse_status = fields.Selection([
         ('pending', 'Pending'),
@@ -70,9 +70,22 @@ class SaleOrder(models.Model):
                     order.num_orders
                     - (order.num_cancelled + order.num_returned + order.num_delivered + order.num_replaced)
             )
+
     def write(self, vals):
+
+
+            # لو في محاولة لتغيير الحالة
+        # if 'state' in vals:
+        #     for order in self:
+        #         # لو الأوردر متأكد خلاص
+        #         if order.state == 'sales_confirmed' and vals['state'] not in ['cancel', 'returned', 'replacement']:
+        #             # نخلي الحالة زي ما هي، ونمنع التغيير
+        #             vals['state'] = 'sales_confirmed'
+
+
         state_changed = 'state' in vals
         res = super().write(vals)
+
 
         if state_changed:
             for order in self:
@@ -86,12 +99,35 @@ class SaleOrder(models.Model):
 
         return res
 
+    def action_confirm(self):
+        res = super().action_confirm()
+        for order in self:
+            if order.warehouse_status == 'pending':
+                order.warehouse_status = 'waiting_stock'
+                order.last_action_type = 'sales_confirm'
+
+            # تنفيذ Make Done لأي activity On Hold مرتبطة بالطلب
+            on_hold_activities = self.env['mail.activity'].search([
+                ('res_model', '=', 'sale.order'),
+                ('res_id', '=', order.id),
+                ('summary', 'like', 'متابعة طلب On Hold')
+            ])
+            on_hold_activities.action_done()  # تجعلهم Done مباشرة
+
+        return res
+
     def action_no_answer(self):
         for order in self:
-            if order.state == 'sales_confirmed':
+            if order.warehouse_status != 'pending':
                 raise models.ValidationError(
                     "⚠️ لا يمكن وضع الطلب No Answer لأنه تم تأكيده بالفعل"
                 )
+            # elif order.state == 'assigned_to_shipping':
+            #     raise models.ValidationError(
+            #         "⚠️ لا يمكن وضع الطلب No Answer لأنه تم تأكيده بالفعل"
+            #     )
+
+
             order.attempts_count += 1
             order.attempt_date = fields.Datetime.now()
             order.last_action_type = 'no_answer'
@@ -99,7 +135,7 @@ class SaleOrder(models.Model):
 
     def action_on_hold(self):
         self.ensure_one()
-        if self.state == 'sales_confirmed':
+        if self.warehouse_status == 'waiting_stock':
             self.message_post(body="⚠️ لا يمكن وضع الطلب On Hold لأنه تم تأكيده بالفعل")
             return {
                 'type': 'ir.actions.client',
@@ -123,7 +159,7 @@ class SaleOrder(models.Model):
 
     def action_call_back(self):
         for order in self:
-            if order.state == 'sales_confirmed':
+            if order.warehouse_status == 'waiting_stock':
                 order.message_post(body="⚠️ لا يمكن عمل Call Back لهذا الطلب لأنه تم تأكيده بالفعل")
                 continue
             order.attempts_count += 1
@@ -131,53 +167,64 @@ class SaleOrder(models.Model):
             order.last_action_type = 'call_back'
             order.message_post(body="🟡 Call Back scheduled")
 
-    def action_sales_confirm(self):
-
-        for order in self:
-            order.attempts_count += 1
-            order.attempt_date = fields.Datetime.now()
-            order.last_action_type = 'sales_confirm'
-
-            old_state = order.state
-            # تغيير الحالة
-            if order.state != 'sale':
-                order.state = 'sales_confirmed'
-            order.is_sales_confirmed = True
-            order.message_post(body=f"✅ {old_state} --> sales_confirmed")
-
-            # تنفيذ Make Done لأي activity On Hold مرتبطة بالطلب
-            on_hold_activities = self.env['mail.activity'].search([
-                ('res_model', '=', 'sale.order'),
-                ('res_id', '=', order.id),
-                ('summary', 'like', 'متابعة طلب On Hold')
-            ])
-            on_hold_activities.action_done()  # تجعلهم Done مباشرة
-
-            # إنشاء الـ picking لو مش موجود
-            picking_exist = self.env['stock.picking'].search([('origin', '=', order.name)], limit=1)
-            if not picking_exist:
-                picking_vals = {
-                    'partner_id': order.partner_id.id,
-                    'picking_type_id': order.warehouse_id.out_type_id.id,
-                    'location_id': order.warehouse_id.lot_stock_id.id,
-                    'location_dest_id': order.partner_id.property_stock_customer.id,
-                    'origin': order.name,
-                    'sale_id': order.id,
-                    'state': 'draft'
-                }
-                picking = self.env['stock.picking'].create(picking_vals)
-
-                for line in order.order_line:
-                    self.env['stock.move'].create({
-                        'name': line.name,
-                        'product_id': line.product_id.id,
-                        'product_uom_qty': line.product_uom_qty,
-                        'product_uom': line.product_uom.id,
-                        'picking_id': picking.id,
-                        'location_id': order.warehouse_id.lot_stock_id.id,
-                        'location_dest_id': order.partner_id.property_stock_customer.id,
-                    })
-                order.warehouse_status = 'waiting_stock'
+    # def action_sales_confirm(self):
+    #
+    #
+    #     for order in self:
+    #
+    #         if order.state == 'sales_confirmed':
+    #             raise models.ValidationError(
+    #                 "⚠️ الطلب تم تأكيده بالفعل"
+    #             )
+    #         # elif order.state == 'assigned_to_shipping':
+    #         #     raise models.ValidationError(
+    #         #         "⚠️ الطلب تم تأكيده بالفعل"
+    #         #     )
+    #
+    #         order.attempts_count += 1
+    #         order.attempt_date = fields.Datetime.now()
+    #         order.last_action_type = 'sales_confirm'
+    #
+    #         old_state = order.state
+    #         # تغيير الحالة
+    #         if order.state != 'sale':
+    #             order.state = 'sales_confirmed'
+    #         order.is_sales_confirmed = True
+    #         order.message_post(body=f"✅ {old_state} --> sales_confirmed")
+    #
+    #         # تنفيذ Make Done لأي activity On Hold مرتبطة بالطلب
+    #         on_hold_activities = self.env['mail.activity'].search([
+    #             ('res_model', '=', 'sale.order'),
+    #             ('res_id', '=', order.id),
+    #             ('summary', 'like', 'متابعة طلب On Hold')
+    #         ])
+    #         on_hold_activities.action_done()  # تجعلهم Done مباشرة
+    #
+    #         # إنشاء الـ picking لو مش موجود
+    #         picking_exist = self.env['stock.picking'].search([('origin', '=', order.name)], limit=1)
+    #         if not picking_exist:
+    #             picking_vals = {
+    #                 'partner_id': order.partner_id.id,
+    #                 'picking_type_id': order.warehouse_id.out_type_id.id,
+    #                 'location_id': order.warehouse_id.lot_stock_id.id,
+    #                 'location_dest_id': order.partner_id.property_stock_customer.id,
+    #                 'origin': order.name,
+    #                 'sale_id': order.id,
+    #                 'state': 'draft'
+    #             }
+    #             picking = self.env['stock.picking'].create(picking_vals)
+    #
+    #             for line in order.order_line:
+    #                 self.env['stock.move'].create({
+    #                     'name': line.name,
+    #                     'product_id': line.product_id.id,
+    #                     'product_uom_qty': line.product_uom_qty,
+    #                     'product_uom': line.product_uom.id,
+    #                     'picking_id': picking.id,
+    #                     'location_id': order.warehouse_id.lot_stock_id.id,
+    #                     'location_dest_id': order.partner_id.property_stock_customer.id,
+    #                 })
+    #             order.warehouse_status = 'waiting_stock'
 
     def mark_as_returned(self):
         for rec in self:

@@ -117,14 +117,15 @@
                 <button name="action_no_answer"
                         type="object"
                         string="No Answer"
-                        class="text-bg-danger" />
+                        class="text-bg-danger"/>
+<!--                        invisible="state in ('sale','assigned_to_shipping')"/>-->
 
                 <!-- ✅ زر On Hold الجديد -->
                 <button name="action_on_hold"
                         type="object"
                         string="On Hold"
-                        class="btn btn-warning"
-                        invisible="state == 'on_hold'" />
+                        class="btn btn-warning"/>
+<!--                        invisible="state in ('sale', 'on_hold','assigned_to_shipping')"/>-->
 
                 <!-- ✅ زر إزالة من On Hold -->
 <!--                <button name="action_remove_on_hold"-->
@@ -140,22 +141,40 @@
             </xpath>
 
             <!-- نخفي زر Confirm -->
-            <xpath expr="//button[@name='action_confirm']" position="replace"/>
+<!--            <xpath expr="//button[@name='action_confirm']" position="replace"/>-->
+<!--            <xpath expr="//button[@name='action_confirm']" position="attributes">-->
+<!--                <attribute name="invisible">0</attribute>-->
+<!--            </xpath>-->
 
-            <!-- نضيف الزر الجديد Sales Confirm -->
-            <xpath expr="//header" position="inside">
-                <button name="action_sales_confirm"
-                        string="Sales Confirm"
-                        type="object"
-                        class="btn btn-primary"
-                        invisible="state in ('sale','sales_confirmed')"/>
 
-                <button name="action_sales_confirm"
-                        string="Confirmed"
-                        type="object"
-                        class="btn btn-primary"
-                        invisible="state not in ('sale','sales_confirmed')"/>
-            </xpath>
+<!--            &lt;!&ndash; نضيف الزر الجديد Sales Confirm &ndash;&gt;-->
+<!--            <xpath expr="//header" position="inside">-->
+<!--                <button name="action_sales_confirm"-->
+<!--                    string="Sales Confirm"-->
+<!--                    type="object"-->
+<!--                    class="btn btn-primary"-->
+<!--                    invisible="state in ('sale','assigned_to_shipping')"/>-->
+
+<!--                <button name="action_sales_confirm"-->
+<!--                        string="Sales Confirm"-->
+<!--                        type="object"-->
+<!--                        class="btn btn-primary"-->
+<!--                        invisible="state in ('sale','sales_confirmed')"/>-->
+
+<!--                <button name="action_sales_confirm"-->
+<!--                        string="Confirmed"-->
+<!--                        type="object"-->
+<!--                        class="btn btn-primary"-->
+<!--                        invisible="state not in ('sale','sales_confirmed')"-->
+                <!--                        readonly="1"/>-->
+
+<!--                <button string="Confirmed"-->
+<!--                        type="object"-->
+<!--                        class="btn btn-secondary"-->
+<!--                        attrs="{'invisible': [('state','!=','sales_confirmed')]}"-->
+<!--                        readonly="1"/>-->
+<!--         -->
+<!--            </xpath>-->
 
             <!-- ✅ إضافة شريط الحالة للـ Warehouse Status -->
             <xpath expr="//header" position="inside">
